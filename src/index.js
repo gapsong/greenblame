@@ -8,8 +8,8 @@ const getId = async accName => {
     )
     .then(function(response) {
       // handle success
-      console.log('The IG User Id is:', response.data.users[0].user.pk)
-      return response.data.users[0].user.pk
+      const igId = get(response, 'data.users[0].user.pk')
+      return igId
     })
     .catch(function(error) {
       // handle error
@@ -59,8 +59,8 @@ const getAllPosts = async (id, lastPost = '') => {
     })
 }
 
-const extractLocations = async list => {
-  return await list.reduce((acc, item) => {
+const extractLocations = list => {
+  return list.reduce((acc, item) => {
     const location = get(item, 'node.location', false)
     if (location) {
       return acc.concat(location)
@@ -69,31 +69,65 @@ const extractLocations = async list => {
   }, [])
 }
 
-const getLatLng = async locations => {
+const login = async () => {
   // TODO: fix this. Rebuild it into Promisestyle. Not working atm
-  return await locations.map(async (item, index) => {
-    return await axios
-      .get(
-        `https://www.instagram.com/explore/locations/${item.id}/${item.slug}/?__a=1`
-      )
-      .then(json => {
-        console.log('extract lat and lng')
-        console.log(json)
-        return json
-      })
-  })
+  return axios
+    .post(`https://www.instagram.com/accounts/login/ajax/`, {
+      headers: {
+        Accept: '*/*',
+        'Accept-Encoding': 'gzip, deflate, br',
+        Connection: 'keep-alive',
+        Host: 'www.instagram.com',
+        Origin: 'https://www.instagram.com',
+        Referer: 'https://www.instagram.com/',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0',
+        'X-Instagram-AJAX': '1',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: { login: 'green.blame', password: 'killanova123!' }
+    })
+    .then(json => {
+      console.log('extract lat and lng')
+      console.log(json)
+      return json
+    })
 }
 
-getId('kevadams') //kevadams is the perfect test accout because he tags almost every image with a geolocation
-  .then(id => getAllPosts(id))
-  .then(list => {
-    list = list.slice(0, 10) //TODO: this limit should get removed when going live
-    console.log(list)
-    return extractLocations(list)
-  })
-  .then(locations => {
-    getLatLng(locations)
-  })
-  .then(geos => {
-    console.log(geos)
-  })
+const getLatLng = async locations => {
+  if (locations == []) {
+    return []
+  } else {
+    return await axios
+      .get(
+        `https://www.instagram.com/explore/locations/${locations[0].id}/${locations[0].slug}/?__a=1`
+      )
+      .then(async response => {
+        // handle success
+        console.log(response)
+        locations = locations.slice(1, locations.length)
+        return [response].concat(await getLatLng(locations))
+      })
+      .catch(function(error) {
+        // handle error
+        console.log(error)
+      })
+  }
+}
+
+login()
+
+// getId('kevadams') //kevadams is the perfect test accout because he tags almost every image with a geolocation
+//   .then(id => getAllPosts(id))
+//   .then(posts => {
+//     posts = posts.slice(0, 10) //TODO: this limit should get removed when going live
+//     console.log('posts', posts)
+//     return posts
+//   })
+//   .then(posts => {
+//     console.log('locations', extractLocations(posts))
+//     getLatLng(extractLocations(posts))
+//   })
+//   .then(geos => {
+//     console.log(geos)
+//   })
